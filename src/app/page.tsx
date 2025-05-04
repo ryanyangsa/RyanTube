@@ -1,103 +1,144 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useCallback } from 'react';
+import { searchVideos } from '@/services/youtube';
+import SearchBar from '@/components/SearchBar';
+import VideoCard from '@/components/VideoCard';
+import SummaryModal from '@/components/SummaryModal';
+import InfiniteScroll from 'react-infinite-scroll-component';
+import { strings } from '@/constants/strings';
+
+interface Video {
+  id: { videoId: string };
+  snippet: {
+    title: string;
+    description: string;
+    thumbnails: {
+      medium: { url: string };
+    };
+  };
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [query, setQuery] = useState('');
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [nextPageToken, setNextPageToken] = useState<string | undefined>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
+  const searchHandler = useCallback(async (searchQuery: string) => {
+    if (!searchQuery.trim()) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await searchVideos(searchQuery);
+      if (response.error) {
+        setError(response.error);
+        setVideos([]);
+      } else {
+        setVideos(response.items);
+        setNextPageToken(response.nextPageToken);
+      }
+    } catch (error) {
+      setError(strings.search.error);
+      setVideos([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    if (!query || loading) return;
+
+    try {
+      const response = await searchVideos(query, nextPageToken);
+      if (response.error) {
+        setError(response.error);
+      } else {
+        setVideos(prev => [...prev, ...response.items]);
+        setNextPageToken(response.nextPageToken);
+      }
+    } catch (error) {
+      setError(strings.search.error);
+    }
+  }, [query, nextPageToken, loading]);
+
+  const handleSearch = (searchQuery: string) => {
+    setQuery(searchQuery);
+    searchHandler(searchQuery);
+  };
+
+  const handleVideoSelect = (video: Video) => {
+    setSelectedVideo(video);
+    setModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalOpen(false);
+    setSelectedVideo(null);
+  };
+
+  return (
+    <main className="min-h-screen flex flex-col">
+      <div className="flex-grow">
+        <div className="container mx-auto px-4 py-8">
+          <h1 className="text-3xl font-bold text-center mb-8">{strings.common.appName}</h1>
+          <SearchBar onSearch={handleSearch} />
+
+          {error && (
+            <div className="text-center my-4 p-4 bg-red-50 text-red-600 rounded">
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="text-center my-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+              <p className="mt-2">{strings.common.loading}</p>
+            </div>
+          ) : videos.length > 0 ? (
+            <InfiniteScroll
+              dataLength={videos.length}
+              next={loadMore}
+              hasMore={!!nextPageToken}
+              loader={
+                <div className="text-center my-4">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+                </div>
+              }
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-8"
+            >
+              {videos.map((video, index) => (
+                <VideoCard
+                  key={`${video.id.videoId}-${index}`}
+                  video={video}
+                  onSelect={() => handleVideoSelect(video)}
+                />
+              ))}
+            </InfiniteScroll>
+          ) : !loading && query && (
+            <div className="text-center my-4">
+              {strings.search.noResults}
+            </div>
+          )}
+
+          {selectedVideo && (
+            <SummaryModal
+              isOpen={modalOpen}
+              onClose={handleCloseModal}
+              title={selectedVideo.snippet.title}
+              thumbnail={selectedVideo.snippet.thumbnails.medium.url}
+              videoId={selectedVideo.id.videoId}
             />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          )}
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      </div>
+      <footer className="w-full py-4 text-center text-gray-600 bg-gray-50">
+        <p>{strings.common.copyright}</p>
       </footer>
-    </div>
+    </main>
   );
 }
