@@ -102,8 +102,8 @@ export default function SummaryModal({
     <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="w-full max-w-2xl bg-white rounded-lg shadow-xl">
-          <div className="p-6">
+        <Dialog.Panel className="w-full max-w-2xl bg-white rounded-lg shadow-xl max-h-[90vh] flex flex-col">
+          <div className="p-6 overflow-y-auto">
             <div className="flex items-start justify-between mb-4">
               <Dialog.Title className="text-xl font-semibold pr-8">
                 {title}
