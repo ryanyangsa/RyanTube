@@ -10,6 +10,7 @@ interface Summary {
   summary: string;
   keyPoints: string[];
   topicTags: string[];
+  noCaptionWarning: boolean;
 }
 
 interface SummaryModalProps {
@@ -50,6 +51,8 @@ export default function SummaryModal({
       const captionsResponse = await getAvailableCaptions(videoId);
 
       let captionText = '';
+      let noCaptionWarning = false;
+
       if (!captionsResponse.error) {
         // 한국어 자막 우선, 없으면 영어 자막 사용
         const koreanTrack = captionsResponse.tracks.find(track => track.languageCode === 'ko');
@@ -63,6 +66,8 @@ export default function SummaryModal({
               .map(caption => caption.text)
               .join(' ');
           }
+        } else {
+          noCaptionWarning = true;
         }
       }
 
@@ -73,7 +78,10 @@ export default function SummaryModal({
         captions: captionText,
       });
 
-      setSummary(summaryResponse);
+      setSummary({
+        ...summaryResponse,
+        noCaptionWarning,
+      });
     } catch (error) {
       console.error('Summary generation error:', error);
       setError(error instanceof Error ? error.message : strings.services.youtube.apiError);
@@ -134,6 +142,11 @@ export default function SummaryModal({
               <div className="text-red-500 py-4">{error}</div>
             ) : summary ? (
               <div>
+                {summary.noCaptionWarning && (
+                  <div className="mb-4 p-3 bg-yellow-50 text-yellow-800 rounded-md">
+                    {strings.summary.noCaptionWarning}
+                  </div>
+                )}
                 <p className="text-gray-700 whitespace-pre-wrap mb-4">
                   {summary.summary}
                 </p>

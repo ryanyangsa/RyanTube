@@ -1,25 +1,37 @@
 import { strings } from '@/constants/strings';
 
-interface YouTubeSearchResponse {
-  items: {
-    id: { videoId: string };
-    snippet: {
-      title: string;
-      description: string;
-      thumbnails: {
-        medium: { url: string };
-      };
-    };
-  }[];
+interface YouTubeApiResponse<T> {
+  items: T[];
   nextPageToken?: string;
   error?: string;
 }
 
-interface YouTubeVideo {
-  id: string;
+interface YouTubeVideoSnippet {
   title: string;
   description: string;
-  thumbnail: string;
+  thumbnails: {
+    medium: {
+      url: string;
+    };
+  };
+}
+
+interface YouTubeSearchItem {
+  id: { videoId: string };
+  snippet: YouTubeVideoSnippet;
+}
+
+interface YouTubeVideoItem {
+  id: string;
+  snippet: YouTubeVideoSnippet;
+}
+
+interface YouTubeCaptionItem {
+  snippet: {
+    language: string;
+    name: string;
+    trackKind: string;
+  };
 }
 
 interface YouTubeCaptionsResponse {
@@ -40,10 +52,41 @@ interface YouTubeCaptionContentResponse {
   error?: string;
 }
 
+interface YouTubeVideo {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail: string;
+}
+
+/**
+ * YouTube API 응답에서 할당량 초과 여부를 확인합니다.
+ */
+function checkQuotaExceeded(status: number, error?: string): string | null {
+  if (status === 403 || status === 429) {
+    const errorText = error?.toLowerCase() || '';
+    if (errorText.includes('quota') || errorText.includes('limit')) {
+      return strings.services.youtube.quotaExceeded;
+    }
+  }
+  return null;
+}
+
+/**
+ * YouTube API 에러를 처리합니다.
+ */
+function handleYouTubeError(error: unknown, defaultError: string): string {
+  console.error('YouTube API error:', error instanceof Error ? error.message : error);
+  return error instanceof Error ? error.message : defaultError;
+}
+
 /**
  * 유튜브 API를 통해 동영상을 검색합니다.
  */
-export async function searchVideos(query: string, pageToken?: string): Promise<YouTubeSearchResponse> {
+export async function searchVideos(
+  query: string,
+  pageToken?: string
+): Promise<YouTubeApiResponse<YouTubeSearchItem>> {
   try {
     const params = new URLSearchParams({
       q: query,
@@ -55,21 +98,11 @@ export async function searchVideos(query: string, pageToken?: string): Promise<Y
     const data = await response.json();
 
     if (!response.ok) {
-      // 할당량 초과 체크
-      if (response.status === 403 || response.status === 429) {
-        const error = data.error?.toLowerCase() || '';
-        if (error.includes('quota') || error.includes('limit')) {
-          return {
-            items: [],
-            error: strings.services.youtube.quotaExceeded,
-          };
-        }
+      const quotaError = checkQuotaExceeded(response.status, data.error);
+      if (quotaError) {
+        return { items: [], error: quotaError };
       }
-
-      return {
-        items: [],
-        error: data.error || strings.services.youtube.apiError,
-      };
+      return { items: [], error: data.error || strings.services.youtube.apiError };
     }
 
     return {
@@ -77,10 +110,9 @@ export async function searchVideos(query: string, pageToken?: string): Promise<Y
       nextPageToken: data.nextPageToken,
     };
   } catch (error) {
-    console.error('Search error:', error instanceof Error ? error.message : error);
     return {
       items: [],
-      error: strings.services.youtube.searchError,
+      error: handleYouTubeError(error, strings.services.youtube.searchError),
     };
   }
 }
@@ -88,21 +120,21 @@ export async function searchVideos(query: string, pageToken?: string): Promise<Y
 /**
  * 특정 동영상의 상세 정보를 조회합니다.
  */
-export async function getVideoDetails(videoId: string, options?: { signal?: AbortSignal }): Promise<YouTubeVideo | null> {
+export async function getVideoDetails(
+  videoId: string,
+  options?: { signal?: AbortSignal }
+): Promise<YouTubeVideo | null> {
   try {
     const response = await fetch(
       `/api/youtube?videoId=${videoId}&type=details`,
       { signal: options?.signal }
     );
-    const data = await response.json();
+    const data: YouTubeApiResponse<YouTubeVideoItem> = await response.json();
 
     if (!response.ok) {
-      // 할당량 초과 체크
-      if (response.status === 403 || response.status === 429) {
-        const error = data.error?.toLowerCase() || '';
-        if (error.includes('quota') || error.includes('limit')) {
-          throw new Error(strings.services.youtube.quotaExceeded);
-        }
+      const quotaError = checkQuotaExceeded(response.status, data.error);
+      if (quotaError) {
+        throw new Error(quotaError);
       }
       throw new Error(data.error || strings.services.youtube.apiError);
     }
@@ -119,52 +151,43 @@ export async function getVideoDetails(videoId: string, options?: { signal?: Abor
       thumbnail: item.snippet.thumbnails.medium.url,
     };
   } catch (error) {
-    console.error('Video details error:', error instanceof Error ? error.message : error);
-    throw error;
+    throw new Error(handleYouTubeError(error, strings.services.youtube.videoDetailsError));
   }
 }
 
 /**
  * 특정 동영상의 자막을 조회합니다.
  */
-export async function getAvailableCaptions(videoId: string, options?: { signal?: AbortSignal }): Promise<YouTubeCaptionsResponse> {
+export async function getAvailableCaptions(
+  videoId: string,
+  options?: { signal?: AbortSignal }
+): Promise<YouTubeCaptionsResponse> {
   try {
     const response = await fetch(
       `/api/youtube?videoId=${videoId}&type=captions`,
       { signal: options?.signal }
     );
-    const data = await response.json();
+    const data: YouTubeApiResponse<YouTubeCaptionItem> = await response.json();
 
     if (!response.ok) {
-      // 할당량 초과 체크
-      if (response.status === 403 || response.status === 429) {
-        const error = data.error?.toLowerCase() || '';
-        if (error.includes('quota') || error.includes('limit')) {
-          return {
-            tracks: [],
-            error: strings.services.youtube.quotaExceeded,
-          };
-        }
+      const quotaError = checkQuotaExceeded(response.status, data.error);
+      if (quotaError) {
+        return { tracks: [], error: quotaError };
       }
-
-      return {
-        tracks: [],
-        error: data.error || strings.services.youtube.captionsError,
-      };
+      return { tracks: [], error: data.error || strings.services.youtube.captionsError };
     }
 
     return {
-      tracks: data.items?.map((item: any) => ({
+      tracks: data.items?.map(item => ({
         languageCode: item.snippet.language,
         languageName: item.snippet.name,
         kind: item.snippet.trackKind,
       })) || [],
     };
   } catch (error) {
-    console.error('Captions error:', error instanceof Error ? error.message : error);
     return {
       tracks: [],
-      error: strings.services.youtube.captionsError,
+      error: handleYouTubeError(error, strings.services.youtube.captionsError),
     };
   }
 }
@@ -172,7 +195,10 @@ export async function getAvailableCaptions(videoId: string, options?: { signal?:
 /**
  * 특정 동영상의 자막 내용을 조회합니다.
  */
-export async function getCaptionContent(videoId: string, options?: { signal?: AbortSignal }): Promise<YouTubeCaptionContentResponse> {
+export async function getCaptionContent(
+  videoId: string,
+  options?: { signal?: AbortSignal }
+): Promise<YouTubeCaptionContentResponse> {
   try {
     const response = await fetch(
       `/api/youtube?videoId=${videoId}&type=caption_content`,
@@ -180,17 +206,13 @@ export async function getCaptionContent(videoId: string, options?: { signal?: Ab
     );
     
     if (!response.ok) {
-      // 할당량 초과 체크
-      if (response.status === 403 || response.status === 429) {
-        const error = await response.text();
-        if (error.toLowerCase().includes('quota')) {
-          return {
-            captions: [],
-            error: strings.services.youtube.quotaExceeded,
-          };
-        }
+      const quotaError = checkQuotaExceeded(response.status);
+      if (quotaError) {
+        return {
+          captions: [],
+          error: quotaError,
+        };
       }
-
       const errorData = await response.json().catch(() => null);
       return {
         captions: [],
@@ -219,10 +241,9 @@ export async function getCaptionContent(videoId: string, options?: { signal?: Ab
 
     return { captions };
   } catch (error) {
-    console.error('Caption content error:', error instanceof Error ? error.message : error);
     return {
       captions: [],
-      error: strings.services.youtube.captionContentError,
+      error: handleYouTubeError(error, strings.services.youtube.captionContentError),
     };
   }
 }

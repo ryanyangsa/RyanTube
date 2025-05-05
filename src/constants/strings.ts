@@ -14,6 +14,8 @@ interface Strings {
     error: string;
     quotaExceeded: string;
     noResults: string;
+    ariaLabel: string;
+    buttonAriaLabel: string;
   };
   summary: {
     title: string;
@@ -27,6 +29,7 @@ interface Strings {
     noContent: string;
     loading: string;
     retry: string;
+    noCaptionWarning: string;
   };
   services: {
     youtube: {
@@ -61,21 +64,24 @@ export const ko: Strings = {
     placeholder: '검색어를 입력하세요',
     button: '검색',
     error: '검색 중 오류가 발생했습니다',
-    quotaExceeded: 'API 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.',
-    noResults: '검색 결과가 없습니다.',
+    quotaExceeded: 'API 할당량이 초과되었습니다',
+    noResults: '검색 결과가 없습니다',
+    ariaLabel: '유튜브 영상 검색',
+    buttonAriaLabel: '검색 버튼',
   },
   summary: {
     title: 'AI 요약',
-    generating: '요약 생성 중...',
+    generating: '요약을 생성하고 있습니다...',
     summary: '요약',
-    keyPoints: '주요 내용',
-    tags: '태그',
-    watchOnYoutube: 'YouTube에서 보기',
+    keyPoints: '주요 포인트',
+    tags: '관련 태그',
+    watchOnYoutube: 'YouTube에서 시청',
     tryAgain: '다시 시도',
-    error: '요약 생성 중 오류가 발생했습니다.',
+    error: '요약을 생성하는 중 오류가 발생했습니다',
     noContent: '요약할 내용이 없습니다',
     loading: '요약을 생성하고 있습니다...',
     retry: '다시 시도',
+    noCaptionWarning: '자막이 없어 영상 제목과 설명만으로 요약을 생성합니다.',
   },
   services: {
     youtube: {
