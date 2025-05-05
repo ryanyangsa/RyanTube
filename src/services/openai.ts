@@ -1,48 +1,50 @@
 import { strings } from '@/constants/strings';
 
-interface VideoSummary {
-  summary: string;
-  keyPoints: string[];
-  tags: string[];
-}
-
-interface VideoContent {
+export interface VideoContent {
+  title: string;
   description: string;
   captions?: string;
+}
+
+export interface VideoSummary {
+  summary: string;
+  keyPoints: string[];
+  topicTags: string[];
 }
 
 /**
  * 영상의 설명과 자막을 기반으로 요약을 생성합니다.
  */
 export async function generateVideoSummary(
-  videoContent: VideoContent
+  content: VideoContent,
+  options?: { signal?: AbortSignal }
 ): Promise<VideoSummary> {
-  if (!videoContent.description) {
-    throw new Error(strings.services.openai.errors.descriptionRequired);
+  if (!content.description) {
+    throw new Error(strings.services.openai.error);
   }
 
   try {
-    const response = await fetch('/api/openai/summarize', {
+    const response = await fetch('/api/openai', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(videoContent),
+      body: JSON.stringify(content),
+      signal: options?.signal
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || strings.services.openai.errors.summaryGeneration);
+      throw new Error(strings.services.openai.error);
     }
 
-    const result = await response.json();
+    const data = await response.json();
     return {
-      summary: result.summary || strings.services.openai.errors.responseGeneration,
-      keyPoints: Array.isArray(result.keyPoints) ? result.keyPoints : [],
-      tags: Array.isArray(result.tags) ? result.tags : [],
+      summary: data.summary || strings.services.openai.error,
+      keyPoints: Array.isArray(data.keyPoints) ? data.keyPoints : [],
+      topicTags: Array.isArray(data.topicTags) ? data.topicTags : [],
     };
   } catch (error) {
-    console.error(strings.services.openai.logs.apiError, error);
-    throw new Error(strings.services.openai.errors.summaryGeneration);
+    console.error('OpenAI API error:', error);
+    throw new Error(strings.services.openai.error);
   }
 }

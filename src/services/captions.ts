@@ -1,7 +1,6 @@
 import { strings } from '@/constants/strings';
 
 interface CaptionTrack {
-  trackId: string;
   languageCode: string;
   languageName: string;
   kind: string;
@@ -56,7 +55,6 @@ export async function getAvailableCaptions(videoId: string): Promise<CaptionsRes
 
     // 자막 목록 변환
     const tracks = data.items?.map((item: any) => ({
-      trackId: item.id,
       languageCode: item.snippet.language,
       languageName: item.snippet.name,
       kind: item.snippet.trackKind,
@@ -75,10 +73,10 @@ export async function getAvailableCaptions(videoId: string): Promise<CaptionsRes
 /**
  * 자막 내용을 가져옵니다.
  */
-export async function getCaptionContent(trackId: string): Promise<CaptionContentResponse> {
+export async function getCaptionContent(videoId: string): Promise<CaptionContentResponse> {
   try {
     const params = new URLSearchParams({
-      trackId,
+      videoId,
       type: 'caption',
     });
 
@@ -96,14 +94,24 @@ export async function getCaptionContent(trackId: string): Promise<CaptionContent
         }
       }
 
+      const errorData = await response.json().catch(() => null);
       return {
         captions: [],
-        error: strings.services.youtube.captionContentError,
+        error: errorData?.error || strings.services.youtube.captionContentError,
       };
     }
 
-    const xmlText = await response.text();
-    const captions = parseXMLCaptions(xmlText);
+    const content = await response.text();
+    
+    // 자막 텍스트를 줄 단위로 분리하고 빈 줄 제거
+    const captions = content.split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .map((text, index) => ({
+        text,
+        start: index,  // 순서대로 인덱스 부여
+        duration: 1,   // 기본 지속 시간 1초
+      }));
 
     return { captions };
   } catch (error) {
@@ -113,34 +121,4 @@ export async function getCaptionContent(trackId: string): Promise<CaptionContent
       error: strings.services.youtube.captionContentError,
     };
   }
-}
-
-/**
- * XML 형식의 자막을 파싱합니다.
- */
-function parseXMLCaptions(xmlText: string): Caption[] {
-  try {
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-    const textNodes = xmlDoc.getElementsByTagName('text');
-    
-    return Array.from(textNodes).map(node => ({
-      text: node.textContent || '',
-      start: parseFloat(node.getAttribute('start') || '0'),
-      duration: parseFloat(node.getAttribute('dur') || '0'),
-    }));
-  } catch (error) {
-    console.error('Caption parse error:', error instanceof Error ? error.message : error);
-    return [];
-  }
-}
-
-/**
- * 자막 텍스트를 결합합니다.
- */
-export function combineCaptionText(captions: Caption[]): string {
-  return captions
-    .map(caption => caption.text.trim())
-    .filter(text => text.length > 0)
-    .join(' ');
 }

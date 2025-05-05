@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.2",
     "@heroicons/react": "^2.2.0",
     "fast-xml-parser": "^5.2.1",
     "lru-cache": "^11.1.0",
@@ -17,7 +18,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-infinite-scroll-component": "^6.1.0",
-    "react-youtube": "^10.1.0"
+    "react-youtube": "^10.1.0",
+    "youtube-caption-extractor": "^1.4.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

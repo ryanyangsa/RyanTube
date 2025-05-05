@@ -1,174 +1,194 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { rateLimit } from '@/utils/rate-limit';
 import { strings } from '@/constants/strings';
+import { getSubtitles } from 'youtube-caption-extractor';
 
-const limiter = rateLimit();
-
-// YouTube API 키 확인
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 const YOUTUBE_API_BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
-interface YouTubeErrorResponse {
-  error: {
-    code: number;
-    message: string;
-    errors?: Array<{
-      message: string;
-      domain: string;
-      reason: string;
-    }>;
-  };
+interface SubtitleItem {
+  start: number;
+  duration: number;
+  text: string;
 }
 
-/**
- * YouTube API 응답의 에러를 처리합니다.
- */
-async function handleYouTubeResponse(response: Response) {
-  const data = await response.json();
-  
-  if (!response.ok) {
-    // YouTube API 에러 응답 구조 확인
-    const error = data.error || {};
-    
-    // 할당량 초과 체크
-    if (response.status === 403 && 
-        (error.errors?.some((e: any) => 
-          e.reason === 'quotaExceeded' || 
-          e.reason === 'dailyLimitExceeded' ||
-          e.reason === 'quotaLimitExceeded'
-        ) || 
-        error.message?.toLowerCase().includes('quota'))) {
-      return NextResponse.json(
-        { error: strings.services.youtube.quotaExceeded },
-        { status: 429 }
-      );
-    }
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const type = searchParams.get('type');
 
-    // API 에러 메시지 전달
-    return NextResponse.json(
-      { error: error.message || strings.services.youtube.apiError },
-      { status: response.status }
-    );
-  }
-
-  return NextResponse.json(data);
-}
-
-/**
- * YouTube 동영상 검색 API
- */
-export async function GET(request: NextRequest) {
   try {
-    // API 키 확인
     if (!YOUTUBE_API_KEY) {
-      return NextResponse.json(
-        { error: strings.services.youtube.validation.apiKeyMissing },
+      return new Response(
+        JSON.stringify({ error: 'YouTube API key is not configured' }),
         { status: 500 }
       );
     }
 
-    // Rate limiting 체크
-    try {
-      await limiter.check(request, 10);
-    } catch {
-      return NextResponse.json(
-        { error: strings.services.youtube.errors.rateLimitExceeded },
-        { status: 429 }
-      );
-    }
-
-    const searchParams = request.nextUrl.searchParams;
-    const query = searchParams.get('q');
-    const pageToken = searchParams.get('pageToken');
-    const type = searchParams.get('type') || 'search';
-    const videoId = searchParams.get('videoId');
-    const trackId = searchParams.get('trackId');
-
-    // 요청 유형별 필수 파라미터 검증
     switch (type) {
       case 'search':
-        if (!query) {
-          return NextResponse.json(
-            { error: strings.services.youtube.validation.queryRequired },
-            { status: 400 }
-          );
-        }
-        break;
+        return handleSearch(searchParams);
       case 'details':
+        return handleVideoDetails(searchParams);
       case 'captions':
+        return handleCaptions(searchParams);
+      case 'caption': {
+        const videoId = searchParams.get('videoId');
         if (!videoId) {
-          return NextResponse.json(
-            { error: strings.services.youtube.validation.videoIdRequired },
+          return new Response(
+            JSON.stringify({ error: 'Video ID is required' }),
             { status: 400 }
           );
         }
-        break;
-      case 'caption':
-        if (!trackId) {
-          return NextResponse.json(
-            { error: strings.services.youtube.validation.trackIdRequired },
-            { status: 400 }
-          );
-        }
-        break;
+        return handleCaptionContent(videoId);
+      }
       default:
-        return NextResponse.json(
-          { error: strings.services.youtube.validation.invalidType },
+        return new Response(
+          JSON.stringify({ error: 'Invalid request type' }),
           { status: 400 }
         );
     }
+  } catch (error) {
+    console.error('API error:', error);
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error
+      }),
+      { status: 500 }
+    );
+  }
+}
 
-    // API 요청 실행
-    let apiResponse: Response;
+async function handleSearch(params: URLSearchParams) {
+  const query = params.get('q');
+  const pageToken = params.get('pageToken');
 
-    switch (type) {
-      case 'search': {
-        const params = new URLSearchParams({
-          key: YOUTUBE_API_KEY,
-          part: 'snippet',
-          maxResults: '10',
-          type: 'video',
-          q: query!,
-          ...(pageToken && { pageToken }),
-        });
-        apiResponse = await fetch(`${YOUTUBE_API_BASE_URL}/search?${params}`);
-        break;
-      }
-      case 'details': {
-        const params = new URLSearchParams({
-          key: YOUTUBE_API_KEY,
-          part: 'snippet',
-          id: videoId!,
-        });
-        apiResponse = await fetch(`${YOUTUBE_API_BASE_URL}/videos?${params}`);
-        break;
-      }
-      case 'captions': {
-        const params = new URLSearchParams({
-          key: YOUTUBE_API_KEY,
-          part: 'snippet',
-          videoId: videoId!,
-        });
-        apiResponse = await fetch(`${YOUTUBE_API_BASE_URL}/captions?${params}`);
-        break;
-      }
-      case 'caption': {
-        apiResponse = await fetch(
-          `${YOUTUBE_API_BASE_URL}/captions/${trackId}?key=${YOUTUBE_API_KEY}`,
-          { headers: { 'Accept': 'text/xml' } }
-        );
-        break;
-      }
-      default:
-        throw new Error(strings.services.youtube.validation.invalidType);
+  if (!query) {
+    return new Response(
+      JSON.stringify({ error: 'Query parameter is required' }),
+      { status: 400 }
+    );
+  }
+
+  const searchParams = new URLSearchParams({
+    part: 'snippet',
+    q: query,
+    type: 'video',
+    maxResults: '12',
+    key: YOUTUBE_API_KEY!,
+    ...(pageToken && { pageToken }),
+  });
+
+  const response = await fetch(
+    `${YOUTUBE_API_BASE_URL}/search?${searchParams}`
+  );
+  const data = await response.json();
+
+  if (!response.ok) {
+    return new Response(
+      JSON.stringify({ error: data.error?.message || strings.services.youtube.searchError }),
+      { status: response.status }
+    );
+  }
+
+  return new Response(JSON.stringify(data));
+}
+
+async function handleVideoDetails(params: URLSearchParams) {
+  const videoId = params.get('videoId');
+
+  if (!videoId) {
+    return new Response(
+      JSON.stringify({ error: 'Video ID is required' }),
+      { status: 400 }
+    );
+  }
+
+  const detailsParams = new URLSearchParams({
+    part: 'snippet',
+    id: videoId,
+    key: YOUTUBE_API_KEY!,
+  });
+
+  const response = await fetch(
+    `${YOUTUBE_API_BASE_URL}/videos?${detailsParams}`
+  );
+  const data = await response.json();
+
+  if (!response.ok) {
+    return new Response(
+      JSON.stringify({ error: data.error?.message || strings.services.youtube.apiError }),
+      { status: response.status }
+    );
+  }
+
+  return new Response(JSON.stringify(data));
+}
+
+async function handleCaptions(params: URLSearchParams) {
+  const videoId = params.get('videoId');
+
+  if (!videoId) {
+    return new Response(
+      JSON.stringify({ error: 'Video ID is required' }),
+      { status: 400 }
+    );
+  }
+
+  const captionsParams = new URLSearchParams({
+    part: 'snippet',
+    videoId: videoId,
+    key: YOUTUBE_API_KEY!,
+  });
+
+  const response = await fetch(
+    `${YOUTUBE_API_BASE_URL}/captions?${captionsParams}`
+  );
+  const data = await response.json();
+
+  if (!response.ok) {
+    return new Response(
+      JSON.stringify({ error: data.error?.message || strings.services.youtube.captionsError }),
+      { status: response.status }
+    );
+  }
+
+  return new Response(JSON.stringify(data));
+}
+
+/**
+ * 자막 내용을 가져옵니다.
+ */
+async function handleCaptionContent(videoId: string): Promise<Response> {
+  try {
+    console.log('Fetching captions for videoId:', videoId);
+    
+    const subtitles = await getSubtitles({
+      videoID: videoId,
+      lang: 'ko'  // 한국어 자막 우선
+    });
+
+    if (!Array.isArray(subtitles)) {
+      console.error('Unexpected subtitles format:', subtitles);
+      return new Response(
+        JSON.stringify({ error: 'Invalid subtitles format', details: subtitles }),
+        { status: 500 }
+      );
     }
 
-    return handleYouTubeResponse(apiResponse);
+    // 자막 텍스트만 추출하여 결합
+    const captionText = subtitles
+      .map(subtitle => subtitle.text.trim())
+      .filter(text => text.length > 0)
+      .join('\n');
 
+    return new Response(captionText, {
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+    });
   } catch (error) {
-    console.error('YouTube API Error:', error instanceof Error ? error.message : error);
-    return NextResponse.json(
-      { error: strings.services.youtube.apiError },
+    console.error('Caption content error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error', details: error }),
       { status: 500 }
     );
   }

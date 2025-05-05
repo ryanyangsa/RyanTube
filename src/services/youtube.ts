@@ -24,7 +24,6 @@ interface YouTubeVideo {
 
 interface YouTubeCaptionsResponse {
   tracks: {
-    trackId: string;
     languageCode: string;
     languageName: string;
     kind: string;
@@ -89,14 +88,12 @@ export async function searchVideos(query: string, pageToken?: string): Promise<Y
 /**
  * 특정 동영상의 상세 정보를 조회합니다.
  */
-export async function getVideoDetails(videoId: string): Promise<YouTubeVideo | null> {
+export async function getVideoDetails(videoId: string, options?: { signal?: AbortSignal }): Promise<YouTubeVideo | null> {
   try {
-    const params = new URLSearchParams({
-      videoId,
-      type: 'details',
-    });
-
-    const response = await fetch(`/api/youtube?${params}`);
+    const response = await fetch(
+      `/api/youtube?videoId=${videoId}&type=details`,
+      { signal: options?.signal }
+    );
     const data = await response.json();
 
     if (!response.ok) {
@@ -130,14 +127,12 @@ export async function getVideoDetails(videoId: string): Promise<YouTubeVideo | n
 /**
  * 특정 동영상의 자막을 조회합니다.
  */
-export async function getAvailableCaptions(videoId: string): Promise<YouTubeCaptionsResponse> {
+export async function getAvailableCaptions(videoId: string, options?: { signal?: AbortSignal }): Promise<YouTubeCaptionsResponse> {
   try {
-    const params = new URLSearchParams({
-      videoId,
-      type: 'captions',
-    });
-
-    const response = await fetch(`/api/youtube?${params}`);
+    const response = await fetch(
+      `/api/youtube?videoId=${videoId}&type=captions`,
+      { signal: options?.signal }
+    );
     const data = await response.json();
 
     if (!response.ok) {
@@ -160,7 +155,6 @@ export async function getAvailableCaptions(videoId: string): Promise<YouTubeCapt
 
     return {
       tracks: data.items?.map((item: any) => ({
-        trackId: item.id,
         languageCode: item.snippet.language,
         languageName: item.snippet.name,
         kind: item.snippet.trackKind,
@@ -176,16 +170,14 @@ export async function getAvailableCaptions(videoId: string): Promise<YouTubeCapt
 }
 
 /**
- * 특정 자막의 내용을 조회합니다.
+ * 특정 동영상의 자막 내용을 조회합니다.
  */
-export async function getCaptionContent(trackId: string): Promise<YouTubeCaptionContentResponse> {
+export async function getCaptionContent(videoId: string, options?: { signal?: AbortSignal }): Promise<YouTubeCaptionContentResponse> {
   try {
-    const params = new URLSearchParams({
-      trackId,
-      type: 'caption',
-    });
-
-    const response = await fetch(`/api/youtube?${params}`);
+    const response = await fetch(
+      `/api/youtube?videoId=${videoId}&type=caption_content`,
+      { signal: options?.signal }
+    );
     
     if (!response.ok) {
       // 할당량 초과 체크
@@ -199,22 +191,31 @@ export async function getCaptionContent(trackId: string): Promise<YouTubeCaption
         }
       }
 
+      const errorData = await response.json().catch(() => null);
       return {
         captions: [],
-        error: strings.services.youtube.captionContentError,
+        error: errorData?.error || strings.services.youtube.captionContentError,
       };
     }
 
-    const xmlText = await response.text();
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-    const textNodes = xmlDoc.getElementsByTagName('text');
-    
-    const captions = Array.from(textNodes).map(node => ({
-      text: node.textContent || '',
-      start: parseFloat(node.getAttribute('start') || '0'),
-      duration: parseFloat(node.getAttribute('dur') || '0'),
-    }));
+    const content = await response.text();
+    const captions = content.split('\n\n')
+      .filter(block => block.trim())
+      .map(block => {
+        const lines = block.split('\n');
+        if (lines.length < 3) return null;
+        
+        const timeRange = lines[0].split(' --> ');
+        const startTime = timeToSeconds(timeRange[0]);
+        const endTime = timeToSeconds(timeRange[1]);
+        
+        return {
+          text: lines.slice(1).join('\n'),
+          start: startTime,
+          duration: endTime - startTime,
+        };
+      })
+      .filter((caption): caption is NonNullable<typeof caption> => caption !== null);
 
     return { captions };
   } catch (error) {
@@ -224,4 +225,9 @@ export async function getCaptionContent(trackId: string): Promise<YouTubeCaption
       error: strings.services.youtube.captionContentError,
     };
   }
+}
+
+function timeToSeconds(timeStr: string): number {
+  const [hours, minutes, seconds] = timeStr.split(':').map(Number);
+  return hours * 3600 + minutes * 60 + seconds;
 }

@@ -25,10 +25,13 @@ interface Strings {
     tryAgain: string;
     error: string;
     noContent: string;
+    loading: string;
+    retry: string;
   };
   services: {
     youtube: {
       quotaExceeded: string;
+      videoDetailsError: string;
       captionsError: string;
       captionContentError: string;
       searchError: string;
@@ -55,33 +58,36 @@ export const ko: Strings = {
     noResults: '결과가 없습니다',
   },
   search: {
-    placeholder: 'YouTube 영상 검색...',
+    placeholder: '검색어를 입력하세요',
     button: '검색',
     error: '검색 중 오류가 발생했습니다',
     quotaExceeded: 'API 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.',
-    noResults: '검색 결과가 없습니다',
+    noResults: '검색 결과가 없습니다.',
   },
   summary: {
-    title: '영상 요약',
+    title: 'AI 요약',
     generating: '요약 생성 중...',
     summary: '요약',
     keyPoints: '주요 내용',
     tags: '태그',
     watchOnYoutube: 'YouTube에서 보기',
     tryAgain: '다시 시도',
-    error: '요약을 생성하지 못했습니다',
+    error: '요약 생성 중 오류가 발생했습니다.',
     noContent: '요약할 내용이 없습니다',
+    loading: '요약을 생성하고 있습니다...',
+    retry: '다시 시도',
   },
   services: {
     youtube: {
       quotaExceeded: 'YouTube API 할당량이 초과되었습니다. 잠시 후 다시 시도해주세요.',
-      captionsError: '자막을 가져오는 중 오류가 발생했습니다',
-      captionContentError: '자막 내용을 가져오는 중 오류가 발생했습니다',
-      searchError: '검색 중 오류가 발생했습니다',
-      apiError: 'YouTube API 오류가 발생했습니다',
+      videoDetailsError: '비디오 정보를 가져오는데 실패했습니다.',
+      captionsError: '자막 정보를 가져오는데 실패했습니다.',
+      captionContentError: '자막 내용을 가져오는데 실패했습니다.',
+      searchError: '검색 중 오류가 발생했습니다.',
+      apiError: 'YouTube API 오류가 발생했습니다.',
     },
     openai: {
-      error: 'OpenAI API 오류가 발생했습니다',
+      error: '요약 생성 중 오류가 발생했습니다.',
     },
   },
   layout: {
