@@ -2,6 +2,8 @@
 
 유튜브 영상의 내용을 한눈에 파악하고 싶으신가요? RyanTube는 OpenAI의 GPT 모델을 활용하여 유튜브 영상의 내용을 자동으로 요약해주는 서비스입니다.
 
+<img width="1279" alt="image" style="border: 1px solid #000;" src="https://github.com/user-attachments/assets/07f3c559-7017-45ac-8767-a1464be4ffa6" />
+
 ## 주요 기능
 
 - 유튜브 영상 검색
