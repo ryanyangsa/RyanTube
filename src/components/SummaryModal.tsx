@@ -1,5 +1,5 @@
 import { Dialog } from '@headlessui/react';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import { generateVideoSummary } from '@/services/openai';
 import { getVideoDetails } from '@/services/youtube';

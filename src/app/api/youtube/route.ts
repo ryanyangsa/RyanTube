@@ -4,12 +4,6 @@ import { getSubtitles } from 'youtube-caption-extractor';
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 const YOUTUBE_API_BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
-interface SubtitleItem {
-  start: number;
-  duration: number;
-  text: string;
-}
-
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');

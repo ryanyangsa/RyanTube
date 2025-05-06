@@ -59,6 +59,8 @@ interface YouTubeVideo {
   thumbnail: string;
 }
 
+export type { YouTubeVideo };
+
 /**
  * YouTube API 응답에서 할당량 초과 여부를 확인합니다.
  */

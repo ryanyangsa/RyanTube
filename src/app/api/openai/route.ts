@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     let data;
     try {
       data = JSON.parse(responseText);
-    } catch (err) {
+    } catch {
       console.error('Failed to parse OpenAI response:', responseText);
       throw new Error(`Invalid JSON response from OpenAI API: ${responseText.slice(0, 100)}...`);
     }
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
         throw new Error('No JSON object found in the response');
       }
       content = JSON.parse(jsonMatch[0]);
-    } catch (err) {
+    } catch {
       console.error('Failed to parse content:', data.choices[0].message.content);
       throw new Error('Failed to parse content from OpenAI response');
     }

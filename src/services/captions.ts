@@ -54,7 +54,7 @@ export async function getAvailableCaptions(videoId: string): Promise<CaptionsRes
     }
 
     // 자막 목록 변환
-    const tracks = data.items?.map((item: any) => ({
+    const tracks = data.items?.map((item: { snippet: { language: string; name: string; trackKind: string } }) => ({
       languageCode: item.snippet.language,
       languageName: item.snippet.name,
       kind: item.snippet.trackKind,
@@ -120,5 +120,25 @@ export async function getCaptionContent(videoId: string): Promise<CaptionContent
       captions: [],
       error: strings.services.youtube.captionContentError,
     };
+  }
+}
+
+export async function getCaptions(videoId: string): Promise<Caption[]> {
+  try {
+    const response = await getCaptionContent(videoId);
+    return response.captions;
+  } catch (error) {
+    console.error('Error getting captions:', error);
+    throw new Error('Failed to get captions');
+  }
+}
+
+export async function extractCaptions(videoId: string): Promise<string> {
+  try {
+    const captions: Caption[] = await getCaptions(videoId);
+    return captions.map((caption: Caption) => caption.text).join(' ');
+  } catch (error) {
+    console.error('Error extracting captions:', error);
+    throw new Error('Failed to extract captions');
   }
 }

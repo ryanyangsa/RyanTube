@@ -42,7 +42,7 @@ export default function Home() {
         setVideos(response.items);
         setNextPageToken(response.nextPageToken);
       }
-    } catch (error) {
+    } catch {
       setError(strings.search.error);
       setVideos([]);
     } finally {
@@ -61,7 +61,7 @@ export default function Home() {
         setVideos(prev => [...prev, ...response.items]);
         setNextPageToken(response.nextPageToken);
       }
-    } catch (error) {
+    } catch {
       setError(strings.search.error);
     }
   }, [query, nextPageToken, loading]);
