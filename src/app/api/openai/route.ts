@@ -5,7 +5,12 @@ const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
 export async function POST(request: Request) {
   try {
-    const { title, description } = await request.json();
+    const { title, description, captions } = await request.json();
+    console.log('=== Request Data ===');
+    console.log('Title:', title);
+    console.log('Description:', description);
+    console.log('Captions:', captions);
+    console.log('==================');
 
     if (!OPENAI_API_KEY) {
       return NextResponse.json(
@@ -25,10 +30,11 @@ export async function POST(request: Request) {
 
 영상 제목: ${title}
 영상 설명: ${description}
+${captions ? `영상 자막: ${captions}` : ''}
 
 응답 JSON 형식:
 {
-  "summary": "영상의 핵심 내용을 2-3문장으로 요약",
+  "summary": "영상의 핵심 내용을 영상 제목, 영상 설명, 영상 자막을 기반으로 3-5문장으로 요약. 특별히 영상 자막을 토대로 전체 내용을 포함하는 혹은 소개하고 싶은 문장을 꼭 포함시켜야 합니다.",
   "keyPoints": ["영상의 주요 내용 3-5개를 간단히 나열"],
   "topicTags": ["관련 주제 태그 3-5개"]
 }`;
@@ -40,7 +46,7 @@ export async function POST(request: Request) {
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4.1-nano',
         messages: [
           {
             role: 'system',
