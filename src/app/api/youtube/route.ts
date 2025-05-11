@@ -62,11 +62,12 @@ async function handleSearch(params: URLSearchParams) {
     );
   }
 
+  // 검색 매개변수 설정
   const searchParams = new URLSearchParams({
     part: 'snippet',
     q: query,
     type: 'video',
-    maxResults: '12',
+    maxResults: '12', 
     key: YOUTUBE_API_KEY!,
     ...(pageToken && { pageToken }),
   });
@@ -81,6 +82,55 @@ async function handleSearch(params: URLSearchParams) {
       JSON.stringify({ error: data.error?.message || strings.services.youtube.searchError }),
       { status: response.status }
     );
+  }
+
+  interface YouTubeThumbnail {
+    url: string;
+    width: number;
+    height: number;
+  }
+
+  interface YouTubeSnippet {
+    thumbnails: {
+      [key: string]: YouTubeThumbnail;
+    };
+  }
+
+  interface YouTubeSearchItem {
+    id?: {
+      kind?: string;
+      videoId?: string;
+      channelId?: string;
+    };
+    snippet?: YouTubeSnippet;
+  }
+
+  // 채널 결과 필터링
+  if (data.items) {
+    // 채널 결과 제외
+    data.items = data.items
+      .filter((item: YouTubeSearchItem) => {
+        // 채널인 경우 제외
+        if (item.id?.kind === 'youtube#channel') {
+          return false;
+        }
+
+        // 채널 관련 썸네일 제거
+        const thumbnails = item.snippet?.thumbnails;
+        if (thumbnails) {
+          Object.keys(thumbnails).forEach(size => {
+            const thumbnail = thumbnails[size];
+            if (thumbnail?.url.includes('yt3.ggpht.com')) {
+              delete thumbnails[size];
+            }
+          });
+        }
+
+        return true;
+      });
+
+    // pageInfo 업데이트
+    data.pageInfo.resultsPerPage = data.items.length;
   }
 
   return new Response(JSON.stringify(data));
